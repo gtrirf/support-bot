@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     admins: List[int] = Field(default_factory=list, alias="ADMINS")
 
     timezone: str = Field(default="UTC", alias="TIMEZONE")
+    database_url: str = Field(default="support_bot.db", alias="DATABASE_URL")
+    session_timeout: int = Field(default=300, alias="SESSION_TIMEOUT")
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     @property
     def tz(self) -> ZoneInfo:
