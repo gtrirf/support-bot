@@ -14,3 +14,6 @@ bot.db
 .env
 
 CLAUDE.md
+.claude
+
+support_bot.db
