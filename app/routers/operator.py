@@ -24,7 +24,7 @@ from app.keyboards.operator_kb import (
     session_claimed_kb,
     end_chat_kb,
 )
-from app.keyboards.user_kb import main_menu_kb
+from app.keyboards.user_kb import main_menu_kb, live_chat_kb
 from app.states import QuestionState, LiveChatState
 from app.utils.storage_holder import get_storage
 
@@ -43,20 +43,20 @@ async def cmd_panel(message: Message):
     lines = ["<b>📋 Operator paneli</b>\n"]
 
     if questions:
-        lines.append(f"<b>Javoblanmagan savollar ({len(questions)}):</b>")
+        lines.append(f"<b>❓ Javoblanmagan savollar ({len(questions)}):</b>")
         for q in questions:
             lines.append(f"  #{q['id']}: {q['text'][:80]}")
     else:
-        lines.append("Javoblanmagan savollar yo'q.")
+        lines.append("✅ Javoblanmagan savollar yo'q.")
 
     lines.append("")
 
     if sessions:
-        lines.append(f"<b>Kutayotgan chatlar ({len(sessions)}):</b>")
+        lines.append(f"<b>💬 Kutayotgan chatlar ({len(sessions)}):</b>")
         for s in sessions:
             lines.append(f"  #{s['id']} (foydalanuvchi id: {s['user_id']})")
     else:
-        lines.append("Kutayotgan chatlar yo'q.")
+        lines.append("✅ Kutayotgan chatlar yo'q.")
 
     await message.answer("\n".join(lines))
 
@@ -64,14 +64,17 @@ async def cmd_panel(message: Message):
 # ── Answer question flow ──────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("answer_question:"))
-async def cb_answer_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def cb_answer_question(callback: CallbackQuery, state: FSMContext):
     q_id = int(callback.data.split(":")[1])
     operator = await get_operator_by_telegram_id(callback.from_user.id)
 
     claimed = await claim_question(question_id=q_id, operator_id=operator["id"])
     if not claimed:
         await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
-        await callback.answer("Bu savol allaqachon boshqa operator tomonidan qabul qilindi.", show_alert=True)
+        await callback.answer(
+            "Bu savol allaqachon boshqa operator tomonidan qabul qilindi.",
+            show_alert=True,
+        )
         return
 
     question = await get_question_by_id(q_id)
@@ -83,7 +86,9 @@ async def cb_answer_question(callback: CallbackQuery, state: FSMContext, bot: Bo
     await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
     await callback.answer()
     await callback.message.answer(
-        f"📝 Savol #{q_id}:\n{question['text']}\n\nJavobingizni yozing:"
+        f"📝 <b>Savol #{q_id}:</b>\n"
+        f"<i>{question['text']}</i>\n\n"
+        f"Javobingizni yozing:"
     )
 
 
@@ -96,15 +101,15 @@ async def receive_answer(message: Message, state: FSMContext, bot: Bot):
     await answer_question(question_id=q_id, answer_text=message.text)
     await state.clear()
 
-    await message.answer(f"✅ Javob #{q_id} yuborildi.")
+    await message.answer(f"✅ <b>Javob #{q_id} muvaffaqiyatli yuborildi.</b>")
 
     try:
         question = await get_question_by_id(q_id)
         await bot.send_message(
             user_telegram_id,
-            f"💬 <b>Savolingizga javob:</b>\n\n"
-            f"<i>Savol:</i> {question['text']}\n\n"
-            f"<i>Javob:</i> {message.text}",
+            f"💬 <b>Savolingizga javob keldi!</b>\n\n"
+            f"❓ <i>Savol:</i>\n{question['text']}\n\n"
+            f"✅ <i>Javob:</i>\n{message.text}",
         )
     except Exception as e:
         logging.error(f"Failed to send answer to user {user_telegram_id}: {e}")
@@ -120,31 +125,52 @@ async def cb_accept_session(callback: CallbackQuery, state: FSMContext, bot: Bot
     claimed = await claim_live_session(session_id=s_id, operator_id=operator["id"])
     if not claimed:
         await callback.message.edit_reply_markup(reply_markup=session_claimed_kb())
-        await callback.answer("Bu chat allaqachon boshqa operator tomonidan qabul qilindi.", show_alert=True)
+        await callback.answer(
+            "Bu chat allaqachon boshqa operator tomonidan qabul qilindi.",
+            show_alert=True,
+        )
         return
 
     session = await get_session_by_id(s_id)
     user = await get_user_by_id(session["user_id"])
+    user_tg_id = user["telegram_id"]
 
     await state.set_state(LiveChatState.operator_in_live_chat)
-    await state.update_data(session_id=s_id, user_telegram_id=user["telegram_id"])
+    await state.update_data(session_id=s_id, user_telegram_id=user_tg_id)
 
     await callback.message.edit_reply_markup(reply_markup=session_claimed_kb())
     await callback.answer()
     await callback.message.answer(
-        f"✅ Chat #{s_id} qabul qilindi. Foydalanuvchi bilan gaplasha olasiz.\n"
+        f"✅ <b>Chat #{s_id} qabul qilindi.</b>\n\n"
+        f"Foydalanuvchi bilan yozishishni boshlashingiz mumkin.\n"
         f"Chatni yakunlash uchun quyidagi tugmani bosing.",
         reply_markup=end_chat_kb(s_id),
     )
 
-    # Notify user
-    try:
-        await bot.send_message(
-            user["telegram_id"],
-            f"✅ Operator ulandi! Savolingizni yozing.",
-        )
-    except Exception as e:
-        logging.error(f"Failed to notify user {user['telegram_id']}: {e}")
+    # Edit user's live chat message to show operator connected
+    user_menu_msg_id = await _get_user_menu_msg_id(bot, user_tg_id)
+    if user_menu_msg_id:
+        try:
+            await bot.edit_message_text(
+                chat_id=user_tg_id,
+                message_id=user_menu_msg_id,
+                text=(
+                    "✅ <b>Operator ulandi!</b>\n\n"
+                    "Operator bilan yozishishni boshlashingiz mumkin.\n"
+                    "Chatdan chiqish uchun quyidagi tugmani bosing."
+                ),
+                reply_markup=live_chat_kb(s_id),
+            )
+        except Exception as e:
+            logging.error(f"Failed to edit user live chat message: {e}")
+    else:
+        try:
+            await bot.send_message(
+                user_tg_id,
+                "✅ <b>Operator ulandi!</b> Savolingizni yozing.",
+            )
+        except Exception as e:
+            logging.error(f"Failed to notify user {user_tg_id}: {e}")
 
 
 # ── Live chat relay (operator → user) ─────────────────────────────────────────
@@ -182,17 +208,9 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer("✅ Chat yakunlandi.")
 
-    # Notify user and clear their FSM state
     if user_telegram_id:
-        try:
-            await bot.send_message(
-                user_telegram_id,
-                "Chat operator tomonidan yakunlandi. Rahmat!",
-                reply_markup=main_menu_kb(),
-            )
-        except Exception as e:
-            logging.error(f"Failed to notify user {user_telegram_id} of session end: {e}")
-
+        # Get user's menu message ID before clearing their state
+        user_menu_msg_id = None
         try:
             storage = get_storage()
             key = StorageKey(
@@ -202,9 +220,36 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
             )
             from aiogram.fsm.context import FSMContext as _FSMContext
             user_ctx = _FSMContext(storage=storage, key=key)
+            user_data = await user_ctx.get_data()
+            user_menu_msg_id = user_data.get("menu_msg_id")
             await user_ctx.clear()
         except Exception as e:
             logging.error(f"Failed to clear user FSM state for {user_telegram_id}: {e}")
+
+        # Edit user's live chat message back to main menu
+        if user_menu_msg_id:
+            try:
+                await bot.edit_message_text(
+                    chat_id=user_telegram_id,
+                    message_id=user_menu_msg_id,
+                    text=(
+                        "✅ <b>Chat yakunlandi!</b>\n\n"
+                        "Operator tomonidan chat yopildi. Rahmat!\n"
+                        "Yana murojaat qilish uchun quyidagi tugmani bosing."
+                    ),
+                    reply_markup=main_menu_kb(),
+                )
+            except Exception as e:
+                logging.error(f"Failed to edit user menu message: {e}")
+        else:
+            try:
+                await bot.send_message(
+                    user_telegram_id,
+                    "✅ <b>Chat operator tomonidan yakunlandi.</b>\n\nRahmat!",
+                    reply_markup=main_menu_kb(),
+                )
+            except Exception as e:
+                logging.error(f"Failed to notify user {user_telegram_id}: {e}")
 
 
 # ── noop callback (already-claimed buttons) ───────────────────────────────────
@@ -212,3 +257,19 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
 @router.callback_query(F.data == "noop")
 async def cb_noop(callback: CallbackQuery):
     await callback.answer()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _get_user_menu_msg_id(bot: Bot, user_tg_id: int) -> int | None:
+    """Read menu_msg_id from user's FSM state without modifying it."""
+    try:
+        storage = get_storage()
+        key = StorageKey(bot_id=bot.id, chat_id=user_tg_id, user_id=user_tg_id)
+        from aiogram.fsm.context import FSMContext as _FSMContext
+        user_ctx = _FSMContext(storage=storage, key=key)
+        data = await user_ctx.get_data()
+        return data.get("menu_msg_id")
+    except Exception as e:
+        logging.error(f"Failed to read user FSM data for {user_tg_id}: {e}")
+        return None

@@ -1,35 +1,33 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def main_menu_kb() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="Menda savol bor"))
+def main_menu_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❓ Savol yoki murojaat", callback_data="menu:question_type")
     builder.adjust(1)
-    return builder.as_markup(resize_keyboard=True)
+    return builder.as_markup()
 
 
-def question_type_kb() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="Savol qoldirish"))
-    builder.add(KeyboardButton(text="Operatorga bog'lanish"))
-    builder.add(KeyboardButton(text="Orqaga"))
+def question_type_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📝 Savol qoldirish", callback_data="action:ask_question")
+    builder.button(text="💬 Operator bilan chat", callback_data="action:live_chat")
+    builder.button(text="🔙 Orqaga", callback_data="menu:main")
     builder.adjust(2, 1)
-    return builder.as_markup(resize_keyboard=True)
+    return builder.as_markup()
 
 
-def cancel_kb() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="Bekor qilish"))
-    return builder.as_markup(resize_keyboard=True)
+def cancel_question_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❌ Bekor qilish", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
-def live_chat_kb() -> ReplyKeyboardMarkup:
+def live_chat_kb(session_id: int) -> InlineKeyboardMarkup:
     """Shown to user while waiting for operator or in active chat."""
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="Chatdan chiqish"))
-    return builder.as_markup(resize_keyboard=True)
-
-
-def remove_kb() -> ReplyKeyboardRemove:
-    return ReplyKeyboardRemove()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚪 Chatdan chiqish", callback_data=f"chat:leave:{session_id}")
+    builder.adjust(1)
+    return builder.as_markup()
