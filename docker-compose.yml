@@ -1,14 +1,21 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
   bot:
     build: .
-    container_name: bot_template
+    container_name: carville_support_bot
     restart: unless-stopped
+    depends_on:
+      - redis
 
     env_file:
       - .env
 
     volumes:
       - ./logs:/app/logs
+      - ./data:/app/data
 
     environment:
       - TZ=${TIMEZONE:-UTC}
