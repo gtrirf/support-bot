@@ -12,8 +12,7 @@ __pycache__/
 logs/
 bot.db
 .env
+data/
 
 CLAUDE.md
 .claude
-
-support_bot.db
