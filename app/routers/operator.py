@@ -186,7 +186,7 @@ async def operator_relay_message(message: Message, state: FSMContext, bot: Bot):
     try:
         await bot.send_message(
             user_telegram_id,
-            f"🎧 <b>Operator:</b> {message.text}",
+            f"<b>Operator:</b> {message.text}",
         )
     except Exception as e:
         logging.error(f"Failed to relay message to user {user_telegram_id}: {e}")
