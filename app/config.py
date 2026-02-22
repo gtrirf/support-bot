@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing import List
 from zoneinfo import ZoneInfo
 
@@ -8,6 +8,15 @@ class Settings(BaseSettings):
 
     bot_token: str = Field(alias="BOT_TOKEN")
     admins: List[int] = Field(default_factory=list, alias="ADMINS")
+
+    @field_validator("admins", mode="before")
+    @classmethod
+    def parse_admins(cls, v):
+        if isinstance(v, (int, float)):
+            return [int(v)]
+        if isinstance(v, str):
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return v
 
     timezone: str = Field(default="UTC", alias="TIMEZONE")
     database_url: str = Field(default="support_bot.db", alias="DATABASE_URL")
