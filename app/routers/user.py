@@ -17,7 +17,7 @@ from app.db.queries import (
 from app.keyboards.user_kb import (
     main_menu_kb,
     question_type_kb,
-    cancel_question_kb,
+    submit_question_kb,
     live_chat_kb,
 )
 from app.keyboards.operator_kb import question_notification_kb, session_notification_kb
@@ -68,59 +68,96 @@ async def cb_question_type(callback: CallbackQuery):
 
 @router.callback_query(F.data == "action:ask_question")
 async def cb_ask_question(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(QuestionState.waiting_for_question_text)
-    await state.update_data(menu_msg_id=callback.message.message_id)
+    await state.set_state(QuestionState.collecting_messages)
+    await state.update_data(
+        menu_msg_id=callback.message.message_id,
+        collected_msg_ids=[],
+        first_text="",
+    )
     await callback.message.edit_text(
-        "📝 <b>Savol yozing</b>\n\n"
-        "Savolingizni yozing — operatorlar ko'rib chiqib, tez orada javob berishadi.\n\n"
-        "<i>Bekor qilish uchun tugmani bosing.</i>",
-        reply_markup=cancel_question_kb(),
+        "📝 <b>Xabarlaringizni yuboring</b>\n\n"
+        "Matn, rasm, video, audio, sticker — har qanday turdagi xabarlar qabul qilinadi.\n"
+        "Hammasi tayyor bo'lgach <b>Yuborish</b> tugmasini bosing.",
+        reply_markup=submit_question_kb(),
     )
     await callback.answer()
 
 
-@router.message(QuestionState.waiting_for_question_text)
-async def receive_question(message: Message, state: FSMContext, bot: Bot):
-    user = await _upsert(
-        message.from_user.id, message.from_user.username, message.from_user.full_name
-    )
-    question = await create_question(user_id=user["id"], text=message.text)
-
+@router.message(QuestionState.collecting_messages)
+async def collect_question_message(message: Message, state: FSMContext):
     data = await state.get_data()
-    menu_msg_id = data.get("menu_msg_id")
-    await state.clear()
+    ids = data.get("collected_msg_ids", [])
+    ids.append(message.message_id)
 
-    # Edit the persistent menu message to show success
+    first_text = data.get("first_text", "")
+    if not first_text and message.text:
+        first_text = message.text[:500]
+
+    await state.update_data(collected_msg_ids=ids, first_text=first_text)
+
+    menu_msg_id = data.get("menu_msg_id")
+    count = len(ids)
     if menu_msg_id:
         try:
-            await bot.edit_message_text(
+            await message.bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=menu_msg_id,
                 text=(
-                    "✅ <b>Savolingiz qabul qilindi!</b>\n\n"
-                    "Operatorlar tez orada javob beradi.\n"
-                    "Javob kelganda sizga xabar yuboriladi."
+                    f"📝 <b>Xabarlar: {count} ta</b>\n\n"
+                    "Yana xabar yuborishingiz yoki <b>Yuborish</b> tugmasini bosishingiz mumkin."
                 ),
-                reply_markup=main_menu_kb(),
+                reply_markup=submit_question_kb(),
             )
         except Exception:
             pass
 
-    # Broadcast to all operators
-    operators = await get_all_operators()
+
+@router.callback_query(F.data == "question:submit", QuestionState.collecting_messages)
+async def submit_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    collected_ids = data.get("collected_msg_ids", [])
+
+    if not collected_ids:
+        await callback.answer("Avval xabar yuboring!", show_alert=True)
+        return
+
+    first_text = data.get("first_text") or f"[{len(collected_ids)} ta xabar]"
+    user = await _upsert(
+        callback.from_user.id, callback.from_user.username, callback.from_user.full_name
+    )
+    question = await create_question(user_id=user["id"], text=first_text)
     q_id = question["id"]
-    notification = (
+    user_chat_id = callback.message.chat.id
+
+    await state.clear()
+
+    await callback.message.edit_text(
+        "✅ <b>Savolingiz qabul qilindi!</b>\n\n"
+        "Operatorlar tez orada javob beradi.\n"
+        "Javob kelganda sizga xabar yuboriladi.",
+        reply_markup=main_menu_kb(),
+    )
+    await callback.answer()
+
+    # Broadcast to all operators: header + forwarded messages
+    operators = await get_all_operators()
+    header = (
         f"❓ <b>Yangi savol #{q_id}</b>\n"
-        f"👤 {message.from_user.full_name}\n\n"
-        f"<i>{message.text}</i>"
+        f"👤 {callback.from_user.full_name} ({len(collected_ids)} ta xabar)"
     )
     for op in operators:
         try:
             await bot.send_message(
                 op["telegram_id"],
-                notification,
+                header,
                 reply_markup=question_notification_kb(q_id),
             )
+            for msg_id in collected_ids:
+                await bot.forward_message(
+                    chat_id=op["telegram_id"],
+                    from_chat_id=user_chat_id,
+                    message_id=msg_id,
+                )
         except Exception:
             pass
 
@@ -180,7 +217,7 @@ async def cb_leave_chat(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(LiveChatState.in_live_chat)
-async def user_in_live_chat(message: Message, state: FSMContext, bot: Bot):
+async def user_in_live_chat(message: Message, state: FSMContext):
     data = await state.get_data()
     session_id = data.get("session_id")
     if not session_id:
@@ -197,9 +234,6 @@ async def user_in_live_chat(message: Message, state: FSMContext, bot: Bot):
     operator = await get_operator_by_id(session["operator_id"])
     if operator:
         try:
-            await bot.send_message(
-                operator["telegram_id"],
-                f"👤 <b>Foydalanuvchi:</b> {message.text}",
-            )
+            await message.copy_to(operator["telegram_id"])
         except Exception as e:
             logging.error(f"Failed to relay user message: {e}")

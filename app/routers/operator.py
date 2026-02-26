@@ -86,8 +86,8 @@ async def cb_answer_question(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
     await callback.answer()
     await callback.message.answer(
-        f"📝 <b>Savol #{q_id}:</b>\n"
-        f"<i>{question['text']}</i>\n\n"
+        f"📝 <b>Savol #{q_id} uchun javob yozing:</b>\n\n"
+        f"(Yuqoridagi xabarlarda foydalanuvchi savolini ko'rishingiz mumkin.)\n\n"
         f"Javobingizni yozing:"
     )
 
@@ -174,7 +174,7 @@ async def cb_accept_session(callback: CallbackQuery, state: FSMContext, bot: Bot
 # ── Live chat relay (operator → user) ─────────────────────────────────────────
 
 @router.message(LiveChatState.operator_in_live_chat)
-async def operator_relay_message(message: Message, state: FSMContext, bot: Bot):
+async def operator_relay_message(message: Message, state: FSMContext):
     data = await state.get_data()
     user_telegram_id = data.get("user_telegram_id")
     if not user_telegram_id:
@@ -182,10 +182,7 @@ async def operator_relay_message(message: Message, state: FSMContext, bot: Bot):
         return
 
     try:
-        await bot.send_message(
-            user_telegram_id,
-            f"<b>Operator:</b> {message.text}",
-        )
+        await message.copy_to(user_telegram_id)
     except Exception as e:
         logging.error(f"Failed to relay message to user {user_telegram_id}: {e}")
         await message.answer("Xabar foydalanuvchiga yuborilmadi.")

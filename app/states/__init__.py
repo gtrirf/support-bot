@@ -2,7 +2,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class QuestionState(StatesGroup):
-    waiting_for_question_text = State()
+    collecting_messages = State()
     waiting_for_answer_text = State()
 
 

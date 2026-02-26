@@ -25,6 +25,14 @@ def cancel_question_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def submit_question_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Yuborish", callback_data="question:submit")
+    builder.button(text="❌ Bekor qilish", callback_data="menu:main")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
 def live_chat_kb(session_id: int) -> InlineKeyboardMarkup:
     """Shown to user while waiting for operator or in active chat."""
     builder = InlineKeyboardBuilder()
