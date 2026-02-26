@@ -27,7 +27,7 @@ from app.keyboards.operator_kb import (
     ended_chat_kb,
     submit_answer_kb,
 )
-from app.keyboards.user_kb import main_menu_kb, live_chat_kb
+from app.keyboards.user_kb import main_menu_kb, live_chat_kb, rating_kb
 from app.states import QuestionState, LiveChatState
 from app.utils.storage_holder import get_storage
 
@@ -90,6 +90,8 @@ async def cb_answer_question(callback: CallbackQuery, state: FSMContext, bot: Bo
     await state.update_data(
         question_id=q_id,
         user_telegram_id=user["telegram_id"],
+        user_db_id=user["id"],
+        operator_db_id=operator["id"],
         op_chat_id=callback.message.chat.id,
         collected_answer_ids=[],
         first_answer_text="",
@@ -162,6 +164,7 @@ async def submit_answer(callback: CallbackQuery, state: FSMContext, bot: Bot):
 
     q_id = data["question_id"]
     user_telegram_id = data["user_telegram_id"]
+    operator_db_id = data["operator_db_id"]
     op_chat_id = data["op_chat_id"]
     first_answer_text = data.get("first_answer_text") or f"[{len(collected_ids)} ta xabar]"
 
@@ -182,6 +185,11 @@ async def submit_answer(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 from_chat_id=op_chat_id,
                 message_id=msg_id,
             )
+        await bot.send_message(
+            user_telegram_id,
+            "⭐ <b>Operatorni baholang:</b>",
+            reply_markup=rating_kb("q", q_id, operator_db_id),
+        )
     except Exception as e:
         logging.error(f"Failed to send answer to user {user_telegram_id}: {e}")
 
@@ -219,6 +227,7 @@ async def cb_accept_session(callback: CallbackQuery, state: FSMContext, bot: Bot
         session_id=s_id,
         user_telegram_id=user_tg_id,
         user_db_id=user_db_id,
+        operator_db_id=operator["id"],
     )
 
     await callback.message.edit_reply_markup(reply_markup=session_claimed_kb())
@@ -281,6 +290,7 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
     user_telegram_id = data.get("user_telegram_id")
     user_db_id = data.get("user_db_id")
+    operator_db_id = data.get("operator_db_id")
 
     await close_live_session(s_id)
     await state.clear()
@@ -331,6 +341,16 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 )
             except Exception as e:
                 logging.error(f"Failed to notify user {user_telegram_id}: {e}")
+
+        if operator_db_id:
+            try:
+                await bot.send_message(
+                    user_telegram_id,
+                    "⭐ <b>Operatorni baholang:</b>",
+                    reply_markup=rating_kb("s", s_id, operator_db_id),
+                )
+            except Exception as e:
+                logging.error(f"Failed to send rating prompt to user {user_telegram_id}: {e}")
 
 
 # ── User profile view ─────────────────────────────────────────────────────────

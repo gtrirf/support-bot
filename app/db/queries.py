@@ -111,6 +111,28 @@ async def answer_question(question_id: int, answer_text: str) -> bool:
     return cursor.rowcount == 1
 
 
+async def save_question_rating(question_id: int, rating: int) -> bool:
+    """Save rating only if not already rated. Returns False if already rated."""
+    db = get_db()
+    cursor = await db.execute(
+        "UPDATE questions SET rating=? WHERE id=? AND rating IS NULL",
+        (rating, question_id),
+    )
+    await db.commit()
+    return cursor.rowcount == 1
+
+
+async def save_session_rating(session_id: int, rating: int) -> bool:
+    """Save rating only if not already rated. Returns False if already rated."""
+    db = get_db()
+    cursor = await db.execute(
+        "UPDATE live_sessions SET rating=? WHERE id=? AND rating IS NULL",
+        (rating, session_id),
+    )
+    await db.commit()
+    return cursor.rowcount == 1
+
+
 async def get_question_by_id(question_id: int) -> dict | None:
     db = get_db()
     cursor = await db.execute("SELECT * FROM questions WHERE id=?", (question_id,))
@@ -272,7 +294,21 @@ async def get_operator_activity(period: str) -> list:
     db = get_db()
     af = _period_filter(period, "q.answered_at")
     cursor = await db.execute(
-        f"""SELECT o.full_name, o.telegram_id, COUNT(q.id) as answered_count
+        f"""SELECT o.full_name, o.telegram_id, COUNT(q.id) as answered_count,
+                   (SELECT ROUND(AVG(r), 1) FROM (
+                       SELECT rating as r FROM questions
+                           WHERE answered_by = o.id AND rating IS NOT NULL
+                       UNION ALL
+                       SELECT rating as r FROM live_sessions
+                           WHERE operator_id = o.id AND rating IS NOT NULL
+                   )) as avg_rating,
+                   (SELECT COUNT(*) FROM (
+                       SELECT rating FROM questions
+                           WHERE answered_by = o.id AND rating IS NOT NULL
+                       UNION ALL
+                       SELECT rating FROM live_sessions
+                           WHERE operator_id = o.id AND rating IS NOT NULL
+                   )) as rating_count
             FROM operators o
             LEFT JOIN questions q ON q.answered_by = o.id AND {af}
             GROUP BY o.id

@@ -14,6 +14,8 @@ from app.db.queries import (
     get_session_by_id,
     get_operator_by_id,
     close_live_session,
+    save_question_rating,
+    save_session_rating,
 )
 from app.keyboards.user_kb import (
     main_menu_kb,
@@ -238,3 +240,28 @@ async def user_in_live_chat(message: Message, state: FSMContext):
             await message.copy_to(operator["telegram_id"])
         except Exception as e:
             logging.error(f"Failed to relay user message: {e}")
+
+
+# ── Rating ────────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("rate:"))
+async def cb_rate(callback: CallbackQuery):
+    parts = callback.data.split(":")
+    entity_type = parts[1]   # "q" or "s"
+    entity_id = int(parts[2])
+    stars = int(parts[4])
+
+    if entity_type == "q":
+        saved = await save_question_rating(entity_id, stars)
+    else:
+        saved = await save_session_rating(entity_id, stars)
+
+    if not saved:
+        await callback.answer("Siz allaqachon baholadingiz.", show_alert=True)
+        return
+
+    star_str = "⭐" * stars
+    await callback.message.edit_text(
+        f"✅ <b>Bahoyingiz qabul qilindi:</b> {star_str}\n\nRahmat!"
+    )
+    await callback.answer()

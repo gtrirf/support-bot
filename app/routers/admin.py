@@ -238,7 +238,13 @@ async def cb_stats(callback: CallbackQuery):
     ]
     if activity:
         for i, op in enumerate(activity, 1):
-            lines.append(f"  {i}. {op['full_name']}: {op['answered_count']} ta javob")
+            if op.get("avg_rating"):
+                rating_text = f"⭐ {op['avg_rating']} ({op['rating_count']} ta)"
+            else:
+                rating_text = "baholanmagan"
+            lines.append(
+                f"  {i}. {op['full_name']}: {op['answered_count']} javob | {rating_text}"
+            )
     else:
         lines.append("  —")
 

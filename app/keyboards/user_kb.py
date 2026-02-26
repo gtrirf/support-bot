@@ -33,6 +33,19 @@ def submit_question_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def rating_kb(entity_type: str, entity_id: int, operator_db_id: int) -> InlineKeyboardMarkup:
+    """entity_type: 'q' for question, 's' for live session."""
+    builder = InlineKeyboardBuilder()
+    stars_labels = ["1 ⭐", "2 ⭐⭐", "3 ⭐⭐⭐", "4 ⭐⭐⭐⭐", "5 ⭐⭐⭐⭐⭐"]
+    for i, label in enumerate(stars_labels, start=1):
+        builder.button(
+            text=label,
+            callback_data=f"rate:{entity_type}:{entity_id}:{operator_db_id}:{i}",
+        )
+    builder.adjust(5)
+    return builder.as_markup()
+
+
 def live_chat_kb(session_id: int) -> InlineKeyboardMarkup:
     """Shown to user while waiting for operator or in active chat."""
     builder = InlineKeyboardBuilder()

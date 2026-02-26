@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS questions (
     answer_text TEXT,
     answered_by INTEGER REFERENCES operators(id),
     answered_at TIMESTAMP,
+    rating INTEGER CHECK(rating BETWEEN 1 AND 5),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -36,7 +37,8 @@ CREATE TABLE IF NOT EXISTS live_sessions (
     operator_id INTEGER REFERENCES operators(id),
     status TEXT CHECK(status IN ('waiting', 'active', 'closed')) DEFAULT 'waiting',
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP
+    ended_at TIMESTAMP,
+    rating INTEGER CHECK(rating BETWEEN 1 AND 5)
 );
 """
 
@@ -47,12 +49,17 @@ async def init_db(database_url: str) -> None:
     _db.row_factory = aiosqlite.Row
     await _db.execute("PRAGMA journal_mode=WAL")
     await _db.executescript(CREATE_TABLES_SQL)
-    # Migration: add messages_json column if it doesn't exist yet
-    try:
-        await _db.execute("ALTER TABLE questions ADD COLUMN messages_json TEXT")
-        await _db.commit()
-    except Exception:
-        pass  # column already exists
+    # Migrations: add new columns to existing tables if needed
+    migrations = [
+        "ALTER TABLE questions ADD COLUMN messages_json TEXT",
+        "ALTER TABLE questions ADD COLUMN rating INTEGER CHECK(rating BETWEEN 1 AND 5)",
+        "ALTER TABLE live_sessions ADD COLUMN rating INTEGER CHECK(rating BETWEEN 1 AND 5)",
+    ]
+    for sql in migrations:
+        try:
+            await _db.execute(sql)
+        except Exception:
+            pass  # column already exists
     await _db.commit()
 
 
