@@ -11,6 +11,7 @@ from app.db.queries import (
     get_all_operators,
     get_stats,
     get_operator_activity,
+    get_user_by_id,
 )
 from app.filters import IsAdmin
 from app.keyboards.admin_kb import (
@@ -183,6 +184,38 @@ async def cb_stats_menu(callback: CallbackQuery):
     )
     await callback.answer()
 
+
+# ── User profile view ─────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("profile:user:"))
+async def cb_view_user_profile(callback: CallbackQuery):
+    user_db_id = int(callback.data.split(":")[2])
+    user = await get_user_by_id(user_db_id)
+
+    if not user:
+        await callback.answer("Foydalanuvchi topilmadi.", show_alert=True)
+        return
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    username_text = f"@{user['username']}" if user.get("username") else "—"
+    text = (
+        f"👤 <b>Foydalanuvchi profili</b>\n\n"
+        f"📋 Ism: <b>{user['full_name']}</b>\n"
+        f"🔗 Username: {username_text}\n"
+        f"🆔 Telegram ID: <code>{user['telegram_id']}</code>\n"
+        f"📅 Ro'yxatdan o'tgan: {user['created_at']}"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="👤 Profilni ochish",
+            url=f"tg://user?id={user['telegram_id']}",
+        )
+    ]])
+    await callback.answer()
+    await callback.message.answer(text, reply_markup=kb)
+
+
+# ── Statistics ────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("stats:"))
 async def cb_stats(callback: CallbackQuery):

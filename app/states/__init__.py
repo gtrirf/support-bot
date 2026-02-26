@@ -3,7 +3,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 class QuestionState(StatesGroup):
     collecting_messages = State()
-    waiting_for_answer_text = State()
+    collecting_answer_messages = State()
 
 
 class LiveChatState(StatesGroup):

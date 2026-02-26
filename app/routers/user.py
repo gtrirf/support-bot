@@ -150,7 +150,7 @@ async def submit_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
             await bot.send_message(
                 op["telegram_id"],
                 header,
-                reply_markup=question_notification_kb(q_id),
+                reply_markup=question_notification_kb(q_id, user["id"]),
             )
             for msg_id in collected_ids:
                 await bot.forward_message(
