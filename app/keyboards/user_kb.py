@@ -36,7 +36,7 @@ def submit_question_kb() -> InlineKeyboardMarkup:
 def rating_kb(entity_type: str, entity_id: int, operator_db_id: int) -> InlineKeyboardMarkup:
     """entity_type: 'q' for question, 's' for live session."""
     builder = InlineKeyboardBuilder()
-    stars_labels = ["1 ⭐", "2 ⭐⭐", "3 ⭐⭐⭐", "4 ⭐⭐⭐⭐", "5 ⭐⭐⭐⭐⭐"]
+    stars_labels = ["1 ⭐", "2 ⭐", "3 ⭐", "4 ⭐", "5 ⭐"]
     for i, label in enumerate(stars_labels, start=1):
         builder.button(
             text=label,
