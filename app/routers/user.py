@@ -106,12 +106,6 @@ async def receive_question(message: Message, state: FSMContext, bot: Bot):
         except Exception:
             pass
 
-    # Delete user's text message to keep chat clean
-    try:
-        await message.delete()
-    except Exception:
-        pass
-
     # Broadcast to all operators
     operators = await get_all_operators()
     q_id = question["id"]

@@ -104,11 +104,9 @@ async def receive_answer(message: Message, state: FSMContext, bot: Bot):
     await message.answer(f"✅ <b>Javob #{q_id} muvaffaqiyatli yuborildi.</b>")
 
     try:
-        question = await get_question_by_id(q_id)
         await bot.send_message(
             user_telegram_id,
             f"💬 <b>Savolingizga javob keldi!</b>\n\n"
-            f"❓ <i>Savol:</i>\n{question['text']}\n\n"
             f"✅ <i>Javob:</i>\n{message.text}",
         )
     except Exception as e:
