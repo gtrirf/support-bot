@@ -24,6 +24,7 @@ from app.keyboards.operator_kb import (
     question_claimed_kb,
     session_claimed_kb,
     end_chat_kb,
+    ended_chat_kb,
     submit_answer_kb,
 )
 from app.keyboards.user_kb import main_menu_kb, live_chat_kb
@@ -66,21 +67,24 @@ async def cmd_panel(message: Message):
 # ── Answer question flow ──────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("answer_question:"))
-async def cb_answer_question(callback: CallbackQuery, state: FSMContext):
+async def cb_answer_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
     q_id = int(callback.data.split(":")[1])
     operator = await get_operator_by_telegram_id(callback.from_user.id)
 
+    # Fetch question+user before claim so we always have user_db_id for the profile button
+    question = await get_question_by_id(q_id)
+    user = await get_user_by_id(question["user_id"])
+
     claimed = await claim_question(question_id=q_id, operator_id=operator["id"])
     if not claimed:
-        await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
+        await callback.message.edit_reply_markup(
+            reply_markup=question_claimed_kb(user["id"])
+        )
         await callback.answer(
             "Bu savol allaqachon boshqa operator tomonidan qabul qilindi.",
             show_alert=True,
         )
         return
-
-    question = await get_question_by_id(q_id)
-    user = await get_user_by_id(question["user_id"])
 
     await state.set_state(QuestionState.collecting_answer_messages)
     await state.update_data(
@@ -91,17 +95,19 @@ async def cb_answer_question(callback: CallbackQuery, state: FSMContext):
         first_answer_text="",
     )
 
-    await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
+    await callback.message.edit_reply_markup(
+        reply_markup=question_claimed_kb(user["id"])
+    )
     await callback.answer()
 
     # Forward the user's original messages to this operator
     if question.get("messages_json"):
         try:
-            data = json.loads(question["messages_json"])
-            for msg_id in data.get("msg_ids", []):
+            msg_data = json.loads(question["messages_json"])
+            for msg_id in msg_data.get("msg_ids", []):
                 await bot.forward_message(
                     chat_id=callback.message.chat.id,
-                    from_chat_id=data["chat_id"],
+                    from_chat_id=msg_data["chat_id"],
                     message_id=msg_id,
                 )
         except Exception as e:
@@ -274,12 +280,15 @@ async def cb_end_session(callback: CallbackQuery, state: FSMContext, bot: Bot):
     s_id = int(callback.data.split(":")[1])
     data = await state.get_data()
     user_telegram_id = data.get("user_telegram_id")
+    user_db_id = data.get("user_db_id")
 
     await close_live_session(s_id)
     await state.clear()
 
     await callback.answer()
-    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.edit_reply_markup(
+        reply_markup=ended_chat_kb(user_db_id) if user_db_id else None
+    )
     await callback.message.answer("✅ Chat yakunlandi.")
 
     if user_telegram_id:

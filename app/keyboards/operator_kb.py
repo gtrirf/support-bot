@@ -16,9 +16,14 @@ def question_notification_kb(q_id: int, user_db_id: int) -> InlineKeyboardMarkup
     return builder.as_markup()
 
 
-def question_claimed_kb() -> InlineKeyboardMarkup:
+def question_claimed_kb(user_db_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="Javob berildi ✅", callback_data="noop"))
+    builder.add(InlineKeyboardButton(
+        text="👤 Profil",
+        callback_data=f"profile:user:{user_db_id}",
+    ))
+    builder.adjust(2)
     return builder.as_markup()
 
 
@@ -48,6 +53,16 @@ def end_chat_kb(s_id: int, user_db_id: int) -> InlineKeyboardMarkup:
         callback_data=f"end_session:{s_id}",
     ))
     builder.adjust(2)
+    return builder.as_markup()
+
+
+def ended_chat_kb(user_db_id: int) -> InlineKeyboardMarkup:
+    """Shown after chat is closed — only profile button remains."""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="👤 Profil",
+        callback_data=f"profile:user:{user_db_id}",
+    ))
     return builder.as_markup()
 
 
