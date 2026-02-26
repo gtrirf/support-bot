@@ -1,3 +1,4 @@
+import json
 import logging
 
 from aiogram import Router, F, Bot
@@ -92,6 +93,19 @@ async def cb_answer_question(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_reply_markup(reply_markup=question_claimed_kb())
     await callback.answer()
+
+    # Forward the user's original messages to this operator
+    if question.get("messages_json"):
+        try:
+            data = json.loads(question["messages_json"])
+            for msg_id in data.get("msg_ids", []):
+                await bot.forward_message(
+                    chat_id=callback.message.chat.id,
+                    from_chat_id=data["chat_id"],
+                    message_id=msg_id,
+                )
+        except Exception as e:
+            logging.error(f"Failed to forward question messages to operator: {e}")
 
     sent = await callback.message.answer(
         f"📝 <b>Savol #{q_id} uchun javob yozing</b>\n\n"

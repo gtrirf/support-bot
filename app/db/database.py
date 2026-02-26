@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
     text TEXT NOT NULL,
+    messages_json TEXT,
     answer_text TEXT,
     answered_by INTEGER REFERENCES operators(id),
     answered_at TIMESTAMP,
@@ -46,6 +47,12 @@ async def init_db(database_url: str) -> None:
     _db.row_factory = aiosqlite.Row
     await _db.execute("PRAGMA journal_mode=WAL")
     await _db.executescript(CREATE_TABLES_SQL)
+    # Migration: add messages_json column if it doesn't exist yet
+    try:
+        await _db.execute("ALTER TABLE questions ADD COLUMN messages_json TEXT")
+        await _db.commit()
+    except Exception:
+        pass  # column already exists
     await _db.commit()
 
 

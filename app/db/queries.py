@@ -77,11 +77,11 @@ async def get_operator_by_id(operator_id: int) -> dict | None:
 
 # ── Questions ───────────────────────────────────────────────────────────────
 
-async def create_question(user_id: int, text: str) -> dict:
+async def create_question(user_id: int, text: str, messages_json: str | None = None) -> dict:
     db = get_db()
     cursor = await db.execute(
-        "INSERT INTO questions (user_id, text) VALUES (?, ?)",
-        (user_id, text),
+        "INSERT INTO questions (user_id, text, messages_json) VALUES (?, ?, ?)",
+        (user_id, text, messages_json),
     )
     last_id = cursor.lastrowid
     await db.commit()

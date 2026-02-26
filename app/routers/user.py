@@ -1,3 +1,4 @@
+import json
 import logging
 
 from aiogram import Router, F, Bot
@@ -122,12 +123,18 @@ async def submit_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
         return
 
     first_text = data.get("first_text") or f"[{len(collected_ids)} ta xabar]"
+    user_chat_id = callback.message.chat.id
+
+    # Save message refs to DB so the claiming operator can retrieve them later
+    messages_json = json.dumps({"chat_id": user_chat_id, "msg_ids": collected_ids})
+
     user = await _upsert(
         callback.from_user.id, callback.from_user.username, callback.from_user.full_name
     )
-    question = await create_question(user_id=user["id"], text=first_text)
+    question = await create_question(
+        user_id=user["id"], text=first_text, messages_json=messages_json
+    )
     q_id = question["id"]
-    user_chat_id = callback.message.chat.id
 
     await state.clear()
 
@@ -139,7 +146,7 @@ async def submit_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
     )
     await callback.answer()
 
-    # Broadcast to all operators: header + forwarded messages
+    # Broadcast only the header to all operators — messages arrive after claim
     operators = await get_all_operators()
     header = (
         f"❓ <b>Yangi savol #{q_id}</b>\n"
@@ -152,12 +159,6 @@ async def submit_question(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 header,
                 reply_markup=question_notification_kb(q_id, user["id"]),
             )
-            for msg_id in collected_ids:
-                await bot.forward_message(
-                    chat_id=op["telegram_id"],
-                    from_chat_id=user_chat_id,
-                    message_id=msg_id,
-                )
         except Exception:
             pass
 
